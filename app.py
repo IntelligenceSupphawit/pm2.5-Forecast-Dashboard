@@ -1,44 +1,42 @@
-import pickle
-import dash
-from dash import dcc, html
+from dash import Dash, html, dcc
 import dash_bootstrap_components as dbc
+from pycaret.regression import RegressionExperiment
 import pandas as pd
+from datetime import datetime, timedelta
 import plotly.express as px
-from dash.dependencies import Input, Output
 
 # โหลดโมเดล
-model_path = 'pm10_forecast.pkl'
-with open(model_path, 'rb') as f:
-    model = pickle.load(f)
+exp = RegressionExperiment()
+pm10_model = exp.load_model('pm10_nofeture')
 
-# พยากรณ์ PM10 สำหรับ 7 วันข้างหน้า
-def forecast_pm10():
-    future_dates = pd.date_range(start=pd.Timestamp.today(), periods=7, freq='D')
-    predictions = model.predict([[i] for i in range(1, 8)])  # ตัวอย่างการพยากรณ์
-    df = pd.DataFrame({'Date': future_dates, 'PM10': predictions})
-    return df
+# เตรียมข้อมูลสำหรับทำนาย
+future = pd.DataFrame()
+start_date = pd.Timestamp.now()
+future['date'] = [start_date + timedelta(days=i) for i in range(7)]  # เพิ่มคอลัมน์วันที่และเดือนสำหรับอีก 7 วัน
+future['day'] = future['date'].dt.day
+future['month'] = future['date'].dt.month
+future['year'] = future['date'].dt.year
+future['humidity'] = [50, 55, 60, 65, 70, 75, 80]  # ตัวอย่างค่า humidity
+future['temperature'] = [25, 26, 27, 28, 29, 30, 31]  # ตัวอย่างค่า temperature
+future['pm10'] = exp.predict_model(pm10_model, data=future)['prediction_label']  # ทำนายค่า PM10
 
-data = forecast_pm10()
+# สร้างฮิสโตแกรม
+fig = px.bar(future, x='day', y='pm10', title='PM10 Levels Over 7 Days', labels={'day': 'Day', 'pm10': 'PM10 Value'})
 
-# สร้างแอป Dash
-app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
-
-# Layout
+# Dash app
+app = Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
 app.layout = dbc.Container([
-    html.H1("PM10 Forecast for the Next 7 Days", className="text-center mt-4"),
-    dcc.Graph(id='pm10-forecast-graph'),
+    dbc.Row(
+        dbc.Col(html.H1("PM10 7-Day Forecast"), width=12)
+    ),
+    dbc.Row(
+        dbc.Col(html.Pre(future[['date', 'pm10']].to_string(index=False), className="border p-3"), width=12)
+    ),
+    dbc.Row(
+        dbc.Col(dcc.Graph(figure=fig), width=12)  # เพิ่มกราฟฮิสโตแกรม
+    )
 ], fluid=True)
 
-# Callback อัปเดตกราฟ
-@app.callback(
-    Output('pm10-forecast-graph', 'figure'),
-    Input('pm10-forecast-graph', 'id')
-)
-def update_graph(_):
-    fig = px.line(data, x='Date', y='PM10', markers=True, title="Predicted PM10 Levels")
-    fig.update_layout(xaxis_title="Date", yaxis_title="PM10 Levels")
-    return fig
-
-# Run แอป
+# Run the application
 if __name__ == '__main__':
     app.run_server(debug=True)
