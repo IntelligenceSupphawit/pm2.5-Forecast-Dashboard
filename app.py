@@ -1,48 +1,44 @@
-from dash import Dash, html, dcc
+import pickle
+import dash
+from dash import dcc, html
 import dash_bootstrap_components as dbc
-from pycaret.time_series import TSForecastingExperiment
 import pandas as pd
+import plotly.express as px
+from dash.dependencies import Input, Output
 
-# Load PyCaret Experiment
-exp = TSForecastingExperiment()
+# โหลดโมเดล
+model_path = 'pm10_forecast.pkl'
+with open(model_path, 'rb') as f:
+    model = pickle.load(f)
 
-# Load the trained model
-pm10_model = exp.load_model('pm10_model')
+# พยากรณ์ PM10 สำหรับ 7 วันข้างหน้า
+def forecast_pm10():
+    future_dates = pd.date_range(start=pd.Timestamp.today(), periods=7, freq='D')
+    predictions = model.predict([[i] for i in range(1, 8)])  # ตัวอย่างการพยากรณ์
+    df = pd.DataFrame({'Date': future_dates, 'PM10': predictions})
+    return df
 
-# Forecast PM10 for the next 7 days
-future_forecast = exp.predict_model(pm10_model, fh=7)
+data = forecast_pm10()
 
-# Ensure the forecast has a proper index and column name
-future_forecast = future_forecast.rename(columns={'y_pred': 'pm10'})
-future_forecast.index = pd.date_range(start=pd.Timestamp.now(), periods=7, freq='D')
+# สร้างแอป Dash
+app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
 
-# Create the Dash app
-app = Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
-
-# Layout of the app
+# Layout
 app.layout = dbc.Container([
-    dbc.Row(
-        dbc.Col(html.H1("PM10 7-Day Forecast"), width=12)
-    ),
-    dbc.Row(
-        dbc.Col(html.Pre(future_forecast.to_string(index=False), className="border p-3"), width=12)
-    ),
-    dbc.Row(
-        dbc.Col(dcc.Graph(
-            figure={
-                'data': [
-                    {'x': future_forecast.index, 'y': future_forecast['pm10'], 'type': 'line', 'name': 'PM10'},
-                ],
-                'layout': {
-                    'title': 'PM10 7-Day Forecast',
-                    'xaxis': {'title': 'Date'},
-                    'yaxis': {'title': 'PM10 Level'}
-                }
-            }
-        ), width=12)
-    )
+    html.H1("PM10 Forecast for the Next 7 Days", className="text-center mt-4"),
+    dcc.Graph(id='pm10-forecast-graph'),
 ], fluid=True)
 
-# Run the application
+# Callback อัปเดตกราฟ
+@app.callback(
+    Output('pm10-forecast-graph', 'figure'),
+    Input('pm10-forecast-graph', 'id')
+)
+def update_graph(_):
+    fig = px.line(data, x='Date', y='PM10', markers=True, title="Predicted PM10 Levels")
+    fig.update_layout(xaxis_title="Date", yaxis_title="PM10 Levels")
+    return fig
+
+# Run แอป
 if __name__ == '__main__':
     app.run_server(debug=True)

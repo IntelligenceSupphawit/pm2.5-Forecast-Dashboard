@@ -3,4 +3,5 @@ model
 pm-data
 ven
 logs.log
-pm10_model.pkl
+pm10_forecast.pkl
+pm10_nofeture.pkl
