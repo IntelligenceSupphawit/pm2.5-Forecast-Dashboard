@@ -8,20 +8,8 @@ import os
 from dash import dash_table  # Import dash_table
 
 # Initialize the model variable outside the try block
-pm10_model = None
 exp = RegressionExperiment()
-
-# Attempt to load the model with error handling
-try:
-    pm10_model = load_model('pm10_nofeture')
-    # Check if the model was loaded successfully
-    if pm10_model is None:
-        raise FileNotFoundError("Model 'pm10_nofeture' loaded as None.")
-    print("Model loaded successfully.")
-except FileNotFoundError as e:
-    print(f"Error: Model 'pm10_nofeture' not found. Please ensure it exists in the same directory. {e}")
-except Exception as e:
-    print(f"An unexpected error occurred while loading the model: {e}")
+pm10_model = load_model('pm10_nofeture')
 
 # Prepare data for prediction
 future = pd.DataFrame()
@@ -32,26 +20,14 @@ future['month'] = future['date'].dt.month
 future['year'] = future['date'].dt.year
 future['humidity'] = [50, 55, 60, 65, 70, 75, 80]
 future['temperature'] = [25, 26, 27, 28, 29, 30, 31]
-
-if pm10_model is not None:
-    try:
-        future['pm10'] = exp.predict_model(pm10_model, data=future)['prediction_label']
-    except KeyError as e:
-        print(f"Error: The model output is not in the expected format: {e}")
-        future['pm10'] = [0] * 7 # Default values
-    except Exception as e:
-        print(f"An unexpected error occurred during prediction: {e}")
-        future['pm10'] = [0] * 7  # Default values
-else:
-    # If the model did not load, set default values
-    future['pm10'] = [0] * 7
+future['pm10'] = exp.predict_model(pm10_model, data=future)['prediction_label']
 
 today_temperature = future['temperature'].iloc[0]
 today_humidity = future['humidity'].iloc[0]
 
 # Create the bar graph
-fig = px.bar(future, x='day', y='pm10', title='PM10 Levels Over 7 Days',
-             labels={'day': 'Day', 'pm10': 'PM10 Value'})
+fig = px.bar(future, x='date', y='pm10',
+             labels={'date': 'Date', 'pm10': 'PM10 Value'})
 
 # Format the pm10 values to two decimal places
 future['pm10'] = future['pm10'].apply(lambda x: f'{x:.2f}')
@@ -60,11 +36,16 @@ future['date'] = future['date'].dt.strftime('%Y-%m-%d')
 
 # Dash app
 app = Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
+
+# Calculate the height for both table and graph
+table_height = (len(future) if len(future) <= 5 else 5) * 40 + 70  # Adjust 40 and 70 as needed for row height and header + padding
+graph_height = table_height
 app.layout = dbc.Container([
     dbc.Row(
         dbc.Col(html.H1("PM 2.5 Forecast", className="text-center my-4"), width=12)
     ),
     html.Hr(),
+
     dbc.Row([
         dbc.Col(dbc.Card([
             dbc.CardBody([
@@ -86,48 +67,48 @@ app.layout = dbc.Container([
         ], className="mb-3 bg-danger text-center shadow", style={"height": "150px"}), width=4)
     ], justify="center"),
 
-    dbc.Row(
+    dbc.Row([ #New row
         dbc.Col(dbc.Card([
-            dbc.CardBody([
-                html.H4("PM10 Forecast Table", className="card-title"),
-                dash_table.DataTable(
-                    id='pm10-table',
-                    columns=[
-                        {'name': 'Date', 'id': 'date'},
-                        {'name': 'PM10 (µg/m³)', 'id': 'pm10'}
-                    ],
-                    data=future[['date', 'pm10']].to_dict('records'),
-                    page_size=5,  # Number of rows per page
-                    style_header={
-                        'backgroundColor': 'rgb(210, 210, 210)',
-                        'color': 'black',
-                        'fontWeight': 'bold'
-                    },
-                    style_cell={
-                        'textAlign': 'left',
-                        'minWidth': '80px',
-                        'maxWidth': '80px',
-                        'whiteSpace': 'normal'
-                    },
-                    style_data_conditional=[
-                       {
-                            'if': {'row_index': 'odd'},
-                            'backgroundColor': 'rgb(248, 248, 248)'
-                        }
-                    ],
-                    style_table={'width': '70%', 'margin': 'auto'}, #reduce the width of the table
-                )
-            ])
-        ], className="mb-3 shadow"), width=8, style={'margin': 'auto'}), #reduce the column to 8 and add margin
-    ),
-    dbc.Row(
+                dbc.CardBody([
+                    html.H4("PM10 Forecast Table", className="card-title"),
+                    dash_table.DataTable(
+                        id='pm10-table',
+                        columns=[
+                            {'name': 'Date', 'id': 'date'},
+                            {'name': 'PM10 (µg/m³)', 'id': 'pm10'}
+                        ],
+                        data=future[['date', 'pm10']].to_dict('records'),
+                        page_size=5,  # Number of rows per page
+                        style_header={
+                            'backgroundColor': 'rgb(210, 210, 210)',
+                            'color': 'black',
+                            'fontWeight': 'bold'
+                        },
+                        style_cell={
+                            'textAlign': 'left',
+                            'minWidth': '100px',
+                            'maxWidth': '100px',
+                            'whiteSpace': 'normal'
+                        },
+                        style_data_conditional=[
+                           {
+                                'if': {'row_index': 'odd'},
+                                'backgroundColor': 'rgb(248, 248, 248)'
+                            }
+                        ],
+                        style_table={'width': '100%', 'margin': 'auto', 'height': f'{table_height}px', 'overflowY': 'auto', 'minWidth': '100%'}, #Set table height
+                    )
+                ])
+        ], className="mb-3 shadow", style={'width': '100%'}), width=6), # 6 column for table
+
         dbc.Col(dbc.Card([
             dbc.CardBody([
                 html.H4("PM10 Levels Over 7 Days", className="card-title"),
-                dcc.Graph(figure=fig, style={'height': '400px','width':'95%'}) #reduce the height and width of the graph
+                dcc.Graph(figure=fig, style={'height': f'{graph_height}px','width':'100%'}) #Set graph height
             ])
-        ], className="mb-3 shadow"), width=10, style={'margin':'auto'}) #reduce the column to 10 and add margin
-    )
+        ], className="mb-3 shadow", style={'width': '100%'}), width=6) # 6 column for graph
+    ], align="start", justify="center"), #align to start and center
+
 ], fluid=True)
 
 # Run the application
