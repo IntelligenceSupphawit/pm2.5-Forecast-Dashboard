@@ -23,12 +23,16 @@ def prepare_features_pm10(df):
 # ✅ ฟังก์ชันเตรียม Feature สำหรับ PM2.5
 def prepare_features_pm2_5(df):
     df = df.copy()
-    if 'pm2.5' not in df.columns:
-        df['pm2.5'] = 0.0  
     df['date_ordinal'] = df['date'].map(pd.Timestamp.toordinal)
     df['day'] = df['date'].dt.day
     df['month'] = df['date'].dt.month
     df['year'] = df['date'].dt.year
+
+    # ตรวจสอบว่ามีคอลัมน์ที่จำเป็นก่อนทำ Shift
+    for col in ['pm2.5', 'humidity', 'temperature']:
+        if col not in df.columns:
+            df[col] = 0.0  # กำหนดค่าเริ่มต้น
+
     df['pm2_5_lag1'] = df['pm2.5'].shift(1)
     df['pm2_5_lag2'] = df['pm2.5'].shift(2)
     df['humidity_lag1'] = df['humidity'].shift(1)
@@ -41,7 +45,7 @@ def prepare_features_pm2_5(df):
 
 # ✅ เตรียมข้อมูล 7 วันข้างหน้า
 future = pd.DataFrame()
-start_date = pd.Timestamp.now()
+start_date = pd.Timestamp.now().normalize()  # ป้องกันการมีเวลา
 future['date'] = [start_date + timedelta(days=i) for i in range(7)]
 future['humidity'] = [62, 67, 65, 69, 70, 69, 72]
 future['temperature'] = [27, 26, 27, 27, 27, 28, 29]
@@ -65,8 +69,8 @@ today_pm10 = f"{future['pm10'].iloc[0]:.2f}"
 today_pm2_5 = f"{future['pm2.5'].iloc[0]:.2f}"
 
 # ✅ กราฟ PM10 และ PM2.5
-fig_pm10 = px.bar(future, x='date', y='pm10', labels={'date': 'Date', 'pm10': 'PM10 Value'})
-fig_pm2_5 = px.bar(future, x='date', y='pm2.5', labels={'date': 'Date', 'pm2.5': 'PM2.5 Value'})
+fig_pm10 = px.bar(future, x='date', y='pm10', labels={'date': 'Date', 'pm10': 'PM10 Value'}, title="PM10 Levels Over 7 Days")
+fig_pm2_5 = px.bar(future, x='date', y='pm2.5', labels={'date': 'Date', 'pm2.5': 'PM2.5 Value'}, title="PM2.5 Levels Over 7 Days")
 
 # ✅ Format Table Data
 future['pm10'] = future['pm10'].apply(lambda x: f'{x:.2f}')
@@ -89,34 +93,6 @@ app.layout = dbc.Container([
         dbc.Col(dbc.Card([dbc.CardBody([html.H4("PM10 Prediction"), html.P(f"{today_pm10} µg/m³")])], className="mb-3 bg-danger text-white text-center shadow"), width=3)
     ], justify="center"),
 
-    # ✅ ตารางแสดงค่าพยากรณ์
-    dbc.Row([
-        dbc.Col(dbc.Card([
-            dbc.CardBody([
-                html.H4("PM2.5 Forecast Table"),
-                dash_table.DataTable(
-                    id='pm2.5-table',
-                    columns=[{'name': 'Date', 'id': 'date'}, {'name': 'PM2.5 (µg/m³)', 'id': 'pm2.5'}],
-                    data=future[['date', 'pm2.5']].to_dict('records'),
-                    style_table={'width': '100%', 'margin': 'auto'}
-                )
-            ])
-        ], className="mb-3 shadow"), width=6),
-
-        dbc.Col(dbc.Card([
-            dbc.CardBody([
-                html.H4("PM10 Forecast Table"),
-                dash_table.DataTable(
-                    id='pm10-table',
-                    columns=[{'name': 'Date', 'id': 'date'}, {'name': 'PM10 (µg/m³)', 'id': 'pm10'}],
-                    data=future[['date', 'pm10']].to_dict('records'),
-                    style_table={'width': '100%', 'margin': 'auto'}
-                )
-            ])
-        ], className="mb-3 shadow"), width=6),
-    ], align="start", justify="center"),
-
-    # ✅ กราฟแสดงผล PM2.5 และ PM10
     dbc.Row([
         dbc.Col(dbc.Card([
             dbc.CardBody([html.H4("PM2.5 Levels Over 7 Days"), dcc.Graph(figure=fig_pm2_5)])
@@ -124,11 +100,11 @@ app.layout = dbc.Container([
 
         dbc.Col(dbc.Card([
             dbc.CardBody([html.H4("PM10 Levels Over 7 Days"), dcc.Graph(figure=fig_pm10)])
-        ], className="mb-3 shadow"), width=6)
-    ], align="start", justify="center")
+        ], className="mb-3 shadow"), width=6),
+    ], align="start", justify="center"),
 
 ], fluid=True)
 
 # ✅ Run App
 if __name__ == '__main__':
-    app.run_server(debug=True)
+    app.run(debug=True)
