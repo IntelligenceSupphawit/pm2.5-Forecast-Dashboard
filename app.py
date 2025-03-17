@@ -12,9 +12,7 @@ exp_pm2_5 = RegressionExperiment()
 pm10_model = exp_pm10.load_model(r'C:\Users\snpdp\pm2.5-Forecast-Dashboard\Final_model\pm10_nofeture')
 pm2_5_model = exp_pm2_5.load_model(r'C:\Users\snpdp\pm2.5-Forecast-Dashboard\Final_model\final_pm2_5_model')
 
-# ✅ ฟังก์ชันเตรียม Feature สำหรับ PM10
-def prepare_features_pm10(df):
-    df = df.copy()
+# ✅ ฟังก์ชันเตรียม Feature สำหรับ PM10git 
     df['day'] = df['date'].dt.day
     df['month'] = df['date'].dt.month
     df['year'] = df['date'].dt.year
@@ -22,6 +20,7 @@ def prepare_features_pm10(df):
 
 # ✅ ฟังก์ชันเตรียม Feature สำหรับ PM2.5
 def prepare_features_pm2_5(df):
+    
     df = df.copy()
     if 'pm2.5' not in df.columns:
         df['pm2.5'] = 0.0  # กำหนดค่าเริ่มต้น
@@ -76,6 +75,24 @@ future['date'] = future['date'].dt.strftime('%Y-%m-%d')
 # ✅ Dash App
 app = Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
 
+today_temperature = future['temperature'].iloc[0]
+today_humidity = future['humidity'].iloc[0]
+
+# Create the bar graph
+fig = px.bar(future, x='date', y='pm10',
+             labels={'date': 'Date', 'pm10': 'PM10 Value'})
+
+# Format the pm10 values to two decimal places
+future['pm10'] = future['pm10'].apply(lambda x: f'{x:.2f}')
+# Format the date column to 'YYYY-MM-DD'
+future['date'] = future['date'].dt.strftime('%Y-%m-%d')
+
+# Dash app
+app = Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
+
+# Calculate the height for both table and graph
+table_height = (len(future) if len(future) <= 5 else 5) * 40 + 70  # Adjust 40 and 70 as needed for row height and header + padding
+graph_height = table_height
 app.layout = dbc.Container([
     dbc.Row(dbc.Col(html.H1("PM 2.5 Forecast Dashboard", className="text-center my-4"))),
     dbc.Row(dbc.Col(dbc.Alert("Real-time Air Quality Prediction", color="info", className="text-center"))),

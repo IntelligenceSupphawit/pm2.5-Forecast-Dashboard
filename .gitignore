@@ -7,3 +7,5 @@ Data_csv
 snpd
 Final_model
 model_AeroSURE
+pm10_forecast.pkl
+pm10_nofeture.pkl
